@@ -5,6 +5,7 @@ AS = as
 CFLAGS = -Wall -Wextra -O2 -pipe -ffreestanding -fno-stack-protector -fno-stack-check -fno-lto -fno-PIE -fno-PIC -m64 -march=x86-64 -mno-80387 -mno-mmx -mno-sse -mno-sse2 -mno-red-zone -mcmodel=kernel -Iinclude
 LDFLAGS = -T linker.ld -nostdlib -z max-page-size=0x1000 -static
 
+# Automatically finds src/kernel.c, src/requests.c, and src/text.c
 SRCS = $(wildcard src/*.c)
 OBJS = $(SRCS:.c=.o)
 
@@ -15,9 +16,11 @@ all: bin kernel.elf
 bin:
 	$(MAKE) -C bin
 
+# Link all objects into the final kernel
 kernel.elf: $(OBJS)
 	$(LD) $(LDFLAGS) $(OBJS) -o $@
 
+# Compile C files to object files
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
