@@ -58,6 +58,10 @@ void _start(void) {
     }
 
     kprintf("Welcome to bOSs!\n");
+    kprintf("Debug: ABCDEFGHIJKLMNOPQRSTUVWXYZ\n");
+    kprintf("Debug: abcdefghijklmnopqrstuvwxyz\n");
+    kprintf("Debug: 0123456789\n");
+    kprintf("Debug: !@#$%^&*()_+-=[]{};':\",./<>?\\|\n");
 
     // Also mirror to serial so 'make run' shows it in your terminal
     kprint_serial("bOSs Kernel: Framebuffer text initialized.\n");
