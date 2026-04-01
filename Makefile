@@ -5,13 +5,15 @@ AS = as
 CFLAGS = -Wall -Wextra -O2 -pipe -ffreestanding -fno-stack-protector -fno-stack-check -fno-lto -fno-PIE -fno-PIC -m64 -march=x86-64 -mno-80387 -mno-mmx -mno-sse -mno-sse2 -mno-red-zone -mcmodel=kernel -Iinclude
 LDFLAGS = -T linker.ld -nostdlib -z max-page-size=0x1000 -static
 
-# Use wildcard to dynamically find all C files in src/
 SRCS = $(wildcard src/*.c)
 OBJS = $(SRCS:.c=.o)
 
-.PHONY: all clean iso run
+.PHONY: all clean iso run bin
 
-all: kernel.elf
+all: bin kernel.elf
+
+bin:
+	$(MAKE) -C bin
 
 kernel.elf: $(OBJS)
 	$(LD) $(LDFLAGS) $(OBJS) -o $@
@@ -19,7 +21,7 @@ kernel.elf: $(OBJS)
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-iso: kernel.elf limine.conf
+iso: bin kernel.elf limine.conf
 	rm -rf iso_root
 	mkdir -p iso_root/boot
 	cp -v kernel.elf iso_root/boot/
@@ -36,7 +38,8 @@ iso: kernel.elf limine.conf
 	./bin/limine bios-install boss.iso
 
 clean:
+	$(MAKE) -C bin clean
 	rm -rf kernel.elf $(OBJS) iso_root boss.iso
 
-run: iso
+run: bin iso
 	qemu-system-x86_64 -m 1G -M q35 -drive format=raw,file=boss.iso -serial stdio -vga std
