@@ -57,7 +57,7 @@ void _start(void) {
         hcf();
     }
 
-    kprintf("Welcome to bOSs Linux-look-alike!\n");
+    kprintf("Welcome to bOSs!\n");
 
     // Also mirror to serial so 'make run' shows it in your terminal
     kprint_serial("bOSs Kernel: Framebuffer text initialized.\n");
