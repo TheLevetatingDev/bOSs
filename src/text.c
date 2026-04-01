@@ -17,7 +17,7 @@ void draw_char(char c, uint32_t x, uint32_t y, uint32_t color) {
     for (int row = 0; row < 8; row++) {
         for (int col = 0; col < 8; col++) {
             // Check if the bit at this position is set
-            if ((glyph[row] >> col) & 1) {
+            if ((glyph[row] >> (7 - col)) & 1 & 1) {
                 // Calculate pixel address: Base + (Y * Pitch) + (X * BytesPerPixel)
                 uint32_t *pixel = (uint32_t *)((uint8_t *)fb->address + 
                                   (y + row) * fb->pitch + 
