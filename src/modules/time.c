@@ -1,48 +1,60 @@
 #include <stdint.h>
+#include <stddef.h>
+#include "sched/sched.h"
 
+// --- Constants and Globals ---
+#define PIT_FREQUENCY 1193182
+#define TARGET_HZ 100 // 100 ticks per second (10ms per tick)
+
+static uint64_t tick_count = 0;
+
+// Tell the compiler these exist elsewhere
+extern void sched_yield(); 
+extern void kprintf(const char *str);
+
+/* Port I/O Helpers */
 static inline void outb(uint16_t port, uint8_t val) {
     __asm__ volatile ("outb %0, %1" : : "a"(val), "Nd"(port));
 }
 
-static inline uint8_t inb(uint16_t port) {
-    uint8_t ret;
-    __asm__ volatile ("inb %1, %0" : "=a"(ret) : "Nd"(port));
-    return ret;
-}
-
-static inline uint64_t rdtsc(void) {
-    uint32_t lo, hi;
-    __asm__ volatile ("rdtsc" : "=a"(lo), "=d"(hi));
-    return ((uint64_t)hi << 32) | lo;
-}
-
-static uint64_t cpu_freq_hz = 0;
-static uint64_t start_tsc = 0;
-
+/**
+ * init_time: Configures the PIT to fire at TARGET_HZ
+ */
 void init_time(void) {
-    // Enable PIT Channel 2
-    uint8_t conf = inb(0x61);
-    outb(0x61, (conf & 0xFD) | 1);
-    outb(0x43, 0xB2);
+    uint16_t divisor = PIT_FREQUENCY / TARGET_HZ;
 
-    // Set PIT to 10ms (11931 cycles)
-    outb(0x42, 0x9B); 
-    outb(0x42, 0x2E);
+    // Command Register: Binary mode, Square Wave, LSB/MSB, Channel 0
+    outb(0x43, 0x36);
 
-    uint64_t tsc_start = rdtsc();
-    while (!(inb(0x61) & 0x20));
-    uint64_t tsc_end = rdtsc();
+    // Set the divisor (frequency)
+    outb(0x40, (uint8_t)(divisor & 0xFF));        // Low byte
+    outb(0x40, (uint8_t)((divisor >> 8) & 0xFF)); // High byte
 
-    cpu_freq_hz = (tsc_end - tsc_start) * 100;
-    start_tsc = rdtsc();
+    kprintf("[Time] PIT Initialized to 100Hz\n");
 }
 
-// Returns milliseconds since boot
+/**
+ * get_time_ms: Returns elapsed time in milliseconds
+ */
 uint64_t get_time_ms(void) {
-    if (cpu_freq_hz == 0) return 0;
-    
-    uint64_t elapsed_cycles = rdtsc() - start_tsc;
-    
-    // Multiply by 1000 first to maintain precision before dividing
-    return (elapsed_cycles * 1000) / cpu_freq_hz;
+    // Since we set 100Hz, each tick is exactly 10ms
+    return tick_count * 10;
+}
+
+/**
+ * timer_interrupt_handler: Called by your IDT stub when IRQ0 fires.
+ */
+void timer_interrupt_handler(void) {
+    tick_count++;
+
+    /* * PREEMPTION:
+     * This is where the magic happens. We force the scheduler to 
+     * switch tasks even if the current task didn't call yield().
+     */
+    if (tick_count % 2 == 0) { // Switch every 20ms
+        sched_yield();
+    }
+
+    // Send EOI (End of Interrupt) to the Master PIC
+    outb(0x20, 0x20);
 }

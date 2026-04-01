@@ -8,6 +8,7 @@ task_t* current_task = NULL;
 task_t* task_list_head = NULL;
 task_t* task_list_tail = NULL;
 static uint64_t next_id = 1;
+extern void kprintf(const char *str);
 
 void task_create(void (*entry_point)()) {
     task_t* new_task = (task_t*)kmalloc(sizeof(task_t)); 
@@ -41,4 +42,10 @@ void task_create(void (*entry_point)()) {
         task_list_tail->next = new_task;
         task_list_tail = new_task;
     }
+}
+
+// Add this to task.c
+void spawn_task(void (*func)()) {
+    task_create(func);
+    kprintf("[Sched] New task spawned and added to queue.\n");
 }

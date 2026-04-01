@@ -3,22 +3,23 @@
 #include <stdbool.h>
 #include "limine.h"
 
-// --- New Subsystem Includes ---
+/* --- Subsystem Includes --- */
 #include "mm/pmm.h"
 #include "mm/kmalloc.h"
 #include "modules/sched/sched.h"
 
-// External declarations for Limine
+/* --- Limine Requests --- */
 extern uint64_t limine_base_revision[3]; 
 extern volatile struct limine_framebuffer_request framebuffer_request;
 
-// Module functions (implemented elsewhere)
+/* --- External Module Functions --- */
+// These should be defined in your drivers/ or text.c
 void kprintf(const char *str); 
 void draw_char(char c, uint32_t x, uint32_t y, uint32_t fg);
 void init_time(void);
-uint64_t get_time_ms(void);
 
-/* Helper to clear a small area of the screen so we can overwrite text */
+/* --- Graphical Helpers --- */
+
 void clear_rect(uint32_t x, uint32_t y, uint32_t w, uint32_t h) {
     struct limine_framebuffer *fb = framebuffer_request.response->framebuffers[0];
     for (uint32_t i = 0; i < h; i++) {
@@ -29,8 +30,7 @@ void clear_rect(uint32_t x, uint32_t y, uint32_t w, uint32_t h) {
     }
 }
 
-/* Minimal function to convert a number to a string since we don't have itoa */
-void draw_number(uint64_t n, uint32_t x, uint32_t y) {
+void draw_number(uint64_t n, uint32_t x, uint32_t y, uint32_t color) {
     char buf[20];
     int i = 0;
     if (n == 0) buf[i++] = '0';
@@ -38,22 +38,16 @@ void draw_number(uint64_t n, uint32_t x, uint32_t y) {
         buf[i++] = (n % 10) + '0';
         n /= 10;
     }
-    // Draw backwards
     for (int j = i - 1; j >= 0; j--) {
-        draw_char(buf[j], x, y, 0xFFFFFFFF);
+        draw_char(buf[j], x, y, color);
         x += 8;
     }
 }
 
-/* Port I/O functions for Serial */
+/* --- Serial I/O --- */
+
 static inline void outb(uint16_t port, uint8_t val) {
     __asm__ volatile ("outb %0, %1" : : "a"(val), "Nd"(port));
-}
-
-static inline uint8_t inb(uint16_t port) {
-    uint8_t ret;
-    __asm__ volatile ("inb %1, %0" : "=a"(ret) : "Nd"(port));
-    return ret;
 }
 
 static void init_serial(void) {
@@ -66,83 +60,89 @@ static void init_serial(void) {
     outb(0x3F8 + 4, 0x0B);
 }
 
-// --- Multitasking Test Tasks ---
+/* --- Scheduled Worker Tasks --- */
 
-void task_a(void) {
-    int counter = 0;
+/**
+ * task_worker_1: Displays a red counter.
+ * This function is 'spawned' and managed by the scheduler.
+ */
+void task_worker_1(void) {
+    uint64_t count = 0;
     while(1) {
-        kprintf("Task A running...\n");
-        
-        // Draw to screen to show it's alive visually
-        clear_rect(10, 50, 100, 16);
-        draw_char('A', 10, 50, 0xFF0000FF); // Red 'A'
-        draw_number(counter++, 25, 50);
+        // Log to serial
+        // kprintf("[Task 1] Iteration update\n");
 
-        // Dummy delay so it doesn't spam too fast before you hook up a real timer
-        for(volatile int i = 0; i < 20000000; i++); 
-        
-        // Manually yield the CPU to the next task
+        // Update Screen
+        clear_rect(20, 100, 150, 16);
+        draw_char('1', 20, 100, 0xFFFF0000); // Red
+        draw_number(count++, 40, 100, 0xFFFFFFFF);
+
+        // Artificial delay for visibility
+        for(volatile int i = 0; i < 15000000; i++); 
+
+        // Hand over control to next task
         sched_yield(); 
     }
 }
 
-void task_b(void) {
-    int counter = 0;
+/**
+ * task_worker_2: Displays a green counter.
+ */
+void task_worker_2(void) {
+    uint64_t count = 0;
     while(1) {
-        kprintf("Task B running...\n");
-        
-        // Draw to screen to show it's alive visually
-        clear_rect(10, 70, 100, 16);
-        draw_char('B', 10, 70, 0xFF00FF00); // Green 'B'
-        draw_number(counter++, 25, 70);
+        // kprintf("[Task 2] Iteration update\n");
 
-        // Dummy delay
-        for(volatile int i = 0; i < 20000000; i++); 
-        
-        // Manually yield the CPU to the next task
+        // Update Screen
+        clear_rect(20, 120, 150, 16);
+        draw_char('2', 20, 120, 0xFF00FF00); // Green
+        draw_number(count++, 40, 120, 0xFFFFFFFF);
+
+        for(volatile int i = 0; i < 15000000; i++); 
+
         sched_yield(); 
     }
 }
 
-// --- Main Kernel Entry Point ---
+/* --- Kernel Entrance --- */
 
 void _start(void) {
-    // 1. Basic Hardware Init
     init_serial();
     init_time();
     
-    // Ensure Limine gave us what we need
+    // Safety check for Limine
     if (!LIMINE_BASE_REVISION_SUPPORTED || framebuffer_request.response == NULL) {
         for (;;) __asm__("hlt");
     }
 
-    kprintf("bOSs Kernel Runtime Console\n");
-    kprintf("----------------------------\n");
+    kprintf("bOSs Kernel: Multitasking Edition\n");
+    kprintf("---------------------------------\n");
 
-    // 2. Initialize Memory Management
-    kprintf("[*] Initializing Physical Memory Manager...\n");
-    pmm_init();
-
-    // 3. Initialize the Scheduler
-    kprintf("[*] Initializing Task Scheduler...\n");
+    // 1. Setup Memory (PMM + Heap)
+    kprintf("[SYS] Initializing PMM...\n");
+    pmm_init(); 
+    
+    // 2. Setup Scheduler
+    kprintf("[SYS] Initializing Scheduler...\n");
     sched_init();
 
-    // 4. Create our user threads (they will use pmm_alloc for their stacks)
-    kprintf("[*] Creating Kernel Tasks...\n");
-    task_create(task_a);
-    task_create(task_b);
+    // 3. Spawn tasks using your new "do-task" style logic
+    // We call these once; the functions themselves contain the while(1)
+    kprintf("[SYS] Spawning worker threads...\n");
+    task_create(task_worker_1);
+    task_create(task_worker_2);
 
-    kprintf("[*] Entering Multitasking. Goodbye from main thread!\n");
-    kprintf("----------------------------\n");
+    kprintf("[SYS] Starting Dispatcher Loop...\n");
+    kprintf("---------------------------------\n");
 
-    // 5. Trigger the first context switch
-    // Depending on how you wrote sched_yield, this will save the current 
-    // _start state and load task_a's state.
-    sched_yield();
-
-    // We should never actually reach this loop if scheduling works, 
-    // but it's a safe fallback.
-    for (;;) {
+    /* The main loop of _start now becomes the "Idle Task".
+       Whenever no other task is doing work, the CPU returns here.
+    */
+    while (1) {
+        // yield checks the queue and jumps to task_worker_1 or 2
+        sched_yield(); 
+        
+        // If there are no tasks, we just halt to save power
         __asm__("hlt");
     }
 }
