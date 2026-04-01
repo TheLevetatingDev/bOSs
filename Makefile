@@ -1,15 +1,18 @@
 CC = gcc
+AS = nasm
 LD = ld
 
 CFLAGS = -Wall -Wextra -O2 -pipe -ffreestanding -fno-stack-protector -fno-stack-check \
          -fno-lto -fno-PIE -fno-PIC -m64 -march=x86-64 -mno-80387 -mno-mmx -mno-sse \
          -mno-sse2 -mno-red-zone -mcmodel=kernel -Iinclude
 
+ASFLAGS = -f elf64
 LDFLAGS = -T linker.ld -nostdlib -z max-page-size=0x1000 -static
 
-# REVISION: Dynamically find all .c files in src and all subdirectories (like src/modules)
-SRCS = $(shell find src -name "*.c")
-OBJS = $(SRCS:.c=.o)
+# Find all C and Assembly files
+SRCS_C  = $(shell find src -name "*.c")
+SRCS_S  = $(shell find src -name "*.s")
+OBJS    = $(SRCS_C:.c=.o) $(SRCS_S:.s=.o)
 
 .PHONY: all clean iso run bin
 
@@ -21,9 +24,13 @@ bin:
 kernel.elf: $(OBJS)
 	$(LD) $(LDFLAGS) $(OBJS) -o $@
 
-# Rule to maintain folder structure in object files
+# Rule for C files
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
+
+# Rule for Assembly files
+%.o: %.s
+	$(AS) $(ASFLAGS) $< -o $@
 
 iso: bin kernel.elf limine.conf
 	rm -rf iso_root

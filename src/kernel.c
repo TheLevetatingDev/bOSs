@@ -3,11 +3,16 @@
 #include <stdbool.h>
 #include "limine.h"
 
-// External declarations
+// --- New Subsystem Includes ---
+#include "mm/pmm.h"
+#include "mm/kmalloc.h"
+#include "modules/sched/sched.h"
+
+// External declarations for Limine
 extern uint64_t limine_base_revision[3]; 
 extern volatile struct limine_framebuffer_request framebuffer_request;
 
-// Module functions
+// Module functions (implemented elsewhere)
 void kprintf(const char *str); 
 void draw_char(char c, uint32_t x, uint32_t y, uint32_t fg);
 void init_time(void);
@@ -61,37 +66,83 @@ static void init_serial(void) {
     outb(0x3F8 + 4, 0x0B);
 }
 
+// --- Multitasking Test Tasks ---
+
+void task_a(void) {
+    int counter = 0;
+    while(1) {
+        kprintf("Task A running...\n");
+        
+        // Draw to screen to show it's alive visually
+        clear_rect(10, 50, 100, 16);
+        draw_char('A', 10, 50, 0xFF0000FF); // Red 'A'
+        draw_number(counter++, 25, 50);
+
+        // Dummy delay so it doesn't spam too fast before you hook up a real timer
+        for(volatile int i = 0; i < 20000000; i++); 
+        
+        // Manually yield the CPU to the next task
+        sched_yield(); 
+    }
+}
+
+void task_b(void) {
+    int counter = 0;
+    while(1) {
+        kprintf("Task B running...\n");
+        
+        // Draw to screen to show it's alive visually
+        clear_rect(10, 70, 100, 16);
+        draw_char('B', 10, 70, 0xFF00FF00); // Green 'B'
+        draw_number(counter++, 25, 70);
+
+        // Dummy delay
+        for(volatile int i = 0; i < 20000000; i++); 
+        
+        // Manually yield the CPU to the next task
+        sched_yield(); 
+    }
+}
+
+// --- Main Kernel Entry Point ---
+
 void _start(void) {
+    // 1. Basic Hardware Init
     init_serial();
     init_time();
     
+    // Ensure Limine gave us what we need
     if (!LIMINE_BASE_REVISION_SUPPORTED || framebuffer_request.response == NULL) {
         for (;;) __asm__("hlt");
     }
 
     kprintf("bOSs Kernel Runtime Console\n");
     kprintf("----------------------------\n");
-    kprintf("System Uptime: ");
 
-    // Position where we will draw the live timer (right after "System Uptime: ")
-    uint32_t timer_x = 15 * 8; // 15 characters in * 8 pixels wide
-    uint32_t timer_y = 16 * 2; // 3rd line (0, 16, 32)
+    // 2. Initialize Memory Management
+    kprintf("[*] Initializing Physical Memory Manager...\n");
+    pmm_init();
 
-    while (true) {
-        uint64_t total_ms = get_time_ms();
-        uint64_t sec = total_ms / 1000;
-        uint64_t ms = total_ms % 1000;
+    // 3. Initialize the Scheduler
+    kprintf("[*] Initializing Task Scheduler...\n");
+    sched_init();
 
-        // 1. Erase the old time (clear a black box)
-        clear_rect(timer_x, timer_y, 150, 16);
+    // 4. Create our user threads (they will use pmm_alloc for their stacks)
+    kprintf("[*] Creating Kernel Tasks...\n");
+    task_create(task_a);
+    task_create(task_b);
 
-        // 2. Draw the new time
-        draw_number(sec, timer_x, timer_y);
-        draw_char('.', timer_x + 32, timer_y, 0xFFFFFFFF); // Rough estimate for '.' position
-        draw_number(ms, timer_x + 40, timer_y);
-        
-        // 3. Optional: Add a small delay so we aren't flickering too fast
-        // In a real OS, you'd wait for a vertical blank (V-Sync)
-        for(volatile int i = 0; i < 1000000; i++); 
+    kprintf("[*] Entering Multitasking. Goodbye from main thread!\n");
+    kprintf("----------------------------\n");
+
+    // 5. Trigger the first context switch
+    // Depending on how you wrote sched_yield, this will save the current 
+    // _start state and load task_a's state.
+    sched_yield();
+
+    // We should never actually reach this loop if scheduling works, 
+    // but it's a safe fallback.
+    for (;;) {
+        __asm__("hlt");
     }
 }
