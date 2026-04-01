@@ -1,5 +1,6 @@
 #include "limine.h"
 #include "font.h"
+#include "modules/graphics/graphics.h"
 #include <stddef.h>
 
 extern volatile struct limine_framebuffer_request framebuffer_request;
