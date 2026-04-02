@@ -32,14 +32,15 @@ static void init_serial(void) {
     outb(0x3F8 + 4, 0x0B);
 }
 
-/* --- Test Task --- */
-void test_task(void) {
+/* --- Task Wrapper --- */
+void test_task_wrapper(void) {
     while (1) {
         kprintf("Task 1: Running...\n");
         delay(1000);
     }
 }
-void test_task_2(void) {
+
+void test_task_2_wrapper(void) {
     while (1) {
         kprintf("Task 2: Running...\n");
         delay(100);
@@ -72,9 +73,9 @@ void _start(void) {
     sched_init();
 
     // 4. Create initial tasks
-    // Ensure task_create handles the stack setup for test_task
-    task_create(test_task);
-    task_create(test_task_2);
+    // Use wrappers to ensure interrupts are enabled in each task
+    task_create(test_task_wrapper);
+    task_create(test_task_2_wrapper);
 
     kprintf("[SYS] Enabling Interrupts...\n");
     __asm__ volatile ("sti"); // CRITICAL: Timer won't tick without this

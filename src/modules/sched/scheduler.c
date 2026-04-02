@@ -19,6 +19,7 @@ void sched_init() {
 }
 
 void sched_yield() {
+    __asm__ volatile ("sti"); // Enable interrupts in task context
     if (task_list_head == NULL) return; // Nowhere to switch to!
 
     task_t* old_task = current_task;
