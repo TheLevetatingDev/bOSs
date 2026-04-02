@@ -33,14 +33,16 @@ static void init_serial(void) {
 }
 
 /* --- Test Task --- */
-/**
- * A simple task to verify multitasking and the delay function.
- * Since TARGET_HZ is 100, delay(1) will wait for 1 tick (~10ms).
- */
 void test_task(void) {
     while (1) {
         kprintf("Task 1: Running...\n");
-        delay(1000); // Wait roughly 1 second (100 ticks)
+        delay(1000);
+    }
+}
+void test_task_2(void) {
+    while (1) {
+        kprintf("Task 2: Running...\n");
+        delay(100);
     }
 }
 
@@ -72,6 +74,7 @@ void _start(void) {
     // 4. Create initial tasks
     // Ensure task_create handles the stack setup for test_task
     task_create(test_task);
+    task_create(test_task_2);
 
     kprintf("[SYS] Enabling Interrupts...\n");
     __asm__ volatile ("sti"); // CRITICAL: Timer won't tick without this

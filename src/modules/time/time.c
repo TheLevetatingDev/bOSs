@@ -34,10 +34,7 @@ void delay(uint32_t ms) {
 
 void timer_interrupt_handler(void) {
     tick_count++;
-
-    // Send EOI to PIC (Master)
     outb(0x20, 0x20);
 
-    // Optional: Only enable this once you know delay() works!
-    //if (tick_count % 2 == 0) sched_yield();
+    sched_yield(); 
 }
