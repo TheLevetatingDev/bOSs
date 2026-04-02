@@ -57,8 +57,6 @@ void _start(void) {
     kprintf("[SYS] Initializing Scheduler...\n");
     sched_init();
 
-    task_create(alarm);
-
     // Test panic system (uncomment to test)
     // kprintf("[TEST] Testing panic system...\n");
     // Use wrappers to ensure interrupts are enabled in each task
