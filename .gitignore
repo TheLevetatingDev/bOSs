@@ -1,0 +1,44 @@
+# Compiled Objects
+*.o
+*.elf
+
+# Kernel
+kernel.elf
+
+# ISO and build artifacts
+*.iso
+iso_root/
+
+# Binaries
+*.bin
+*.sys
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Build directories
+build/
+deps/
+
+# Patch files
+*.patch
+*.diff
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# QEMU debug files
+qemulog.txt
+
+# Core dumps
+core
+core.*
+
+# Temp files
+*.tmp
+*.temp

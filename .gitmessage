@@ -1,0 +1,25 @@
+# <subsystem>: <brief description (50 chars or less)
+>
+# Example: sched: add priority scheduling support
+# Example: mm: fix buddy allocator coalescing bug
+
+# Provide more detailed explanation (if needed)
+# Wrap lines at 72 characters
+
+# Subsystem prefixes you can use:
+# kernel  - Main kernel initialization and core
+# sched   - Task scheduler and multitasking
+# mm      - Memory management (pmm, kmalloc, paging)
+# graphics - Display and graphics output
+# time    - Timer and timing functions
+# cpu     - CPU-specific code (IDT, GDT, interrupts)
+# lib     - Utility libraries and helpers
+# build   - Build system and Makefiles
+# docs    - Documentation
+# test    - Test code and test fixes
+# misc    - General or uncategorized changes
+
+# Remember to:
+# - Keep subject line concise and clear
+# - Use present tense ("add" not "added", "fix" not "fixed")
+# - Explain the 'why', not just the 'what'
