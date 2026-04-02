@@ -8,6 +8,7 @@
 #include "mm/kmalloc.h"
 #include "modules/sched/sched.h"
 #include "modules/graphics/graphics.h"
+#include "modules/panic/panic.h"
 #include "modules/time/time.h"  // Ensure this defines delay() and init_time()
 #include "cpu/idt.h"            // Added for idt_init()
 
@@ -31,22 +32,6 @@ static void init_serial(void) {
     outb(0x3F8 + 2, 0xC7);
     outb(0x3F8 + 4, 0x0B);
 }
-
-/* --- Task Wrapper --- */
-void test_task_wrapper(void) {
-    while (1) {
-        kprintf("Task 1: Running...\n");
-        delay(1000);
-    }
-}
-
-void test_task_2_wrapper(void) {
-    while (1) {
-        kprintf("Task 2: Running...\n");
-        delay(100);
-    }
-}
-
 /* --- Kernel Entrance --- */
 
 void _start(void) {
@@ -72,16 +57,17 @@ void _start(void) {
     kprintf("[SYS] Initializing Scheduler...\n");
     sched_init();
 
-    // 4. Create initial tasks
-    // Use wrappers to ensure interrupts are enabled in each task
-    task_create(test_task_wrapper);
-    task_create(test_task_2_wrapper);
+    task_create(alarm);
 
+    // Test panic system (uncomment to test)
+    // kprintf("[TEST] Testing panic system...\n");
+    // Use wrappers to ensure interrupts are enabled in each task
     kprintf("[SYS] Enabling Interrupts...\n");
     __asm__ volatile ("sti"); // CRITICAL: Timer won't tick without this
 
     kprintf("[SYS] Starting Dispatcher Loop...\n");
     kprintf("---------------------------------\n");
+
 
     /* * The main loop of _start acts as the "System Idle Task".
      * When no other tasks are ready, the CPU stays here.
