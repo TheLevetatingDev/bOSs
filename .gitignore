@@ -19,6 +19,8 @@ iso_root/
 *~
 .vscode/
 .idea/
+.claude
+
 
 # Build directories
 build/
