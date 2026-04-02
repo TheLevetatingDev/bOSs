@@ -11,49 +11,71 @@ static uint64_t next_id = 1;
 extern void kprintf(const char *str);
 
 void task_create(void (*entry_point)()) {
-    task_t* new_task = (task_t*)kmalloc(sizeof(task_t)); 
-    if (!new_task) return;
+    kprintf("[DEBUG] task_create: Starting...\n");
 
-    void* stack_bottom = pmm_alloc(1); 
-    if (!stack_bottom) return;
-
-    // IF pmm_alloc RETURNS A PHYSICAL ADDRESS, UNCOMMENT THIS:
-    // extern uint64_t hhdm_offset; // (Or however you get Limine's HHDM)
-    // stack_bottom = (void*)((uint64_t)stack_bottom + hhdm_offset);
-
-    // Treat the stack as an array of 64-bit integers
-    uint64_t* stack = (uint64_t*)((uint64_t)stack_bottom + 4096);
-
-    // --- PART A: THE IRETQ FRAME ---
-    stack[-1] = 0x10;                  // SS (Data Segment)
-    stack[-2] = (uint64_t)stack;       // RSP (Point to the exact top of the stack, 4096)
-    stack[-3] = 0x202;                 // RFLAGS (Interrupts enabled)
-    stack[-4] = 0x08;                  // CS (Code Segment)
-    stack[-5] = (uint64_t)entry_point; // RIP (Function entry)
-
-    // --- PART B: THE ISR STUB VALUES (Crucial!) ---
-    // If your assembly interrupt exits with `add rsp, 16` before `iretq`, 
-    // you MUST include these two dummy values.
-    stack[-6] = 0;                     // Dummy Error Code
-    stack[-7] = 0;                     // Dummy Interrupt Number
-    
-    // --- PART C: THE GENERAL REGISTERS ---
-    // 15 registers pushed by your assembly context switch
-    int offset = 7; 
-    for (int i = 0; i < 15; i++) {
-        offset++;
-        stack[-offset] = 0;
+    if (!entry_point) {
+        kprintf("[DEBUG] task_create: NULL entry point!\n");
+        return;
     }
 
-    // Save the final stack pointer. 
-    // '&stack[-offset]' safely gets the address of the last item pushed.
-    new_task->rsp = (uint64_t)&stack[-offset];
-    
+    task_t* new_task = (task_t*)kmalloc(sizeof(task_t));
+    if (!new_task) {
+        kprintf("[DEBUG] task_create: kmalloc failed!\n");
+        return;
+    }
+    kprintf("[DEBUG] task_create: kmalloc success\n");
+
+    void* stack_bottom = pmm_alloc(1);
+    if (!stack_bottom) {
+        kprintf("[DEBUG] task_create: pmm_alloc failed!\n");
+        return;
+    }
+    kprintf("[DEBUG] task_create: pmm_alloc success\n");
+
+    new_task->stack_bottom = stack_bottom; // Store the stack bottom
+
+    // Stack grows downward from high addresses to low addresses
+    // We need to set up a 56-byte context frame at the top of the stack
+    // The frame contains: [rbp, rbx, r12, r13, r14, r15, return_address]
+    // Based on switch_context.s, when it runs with RSP pointing to rbp location:
+    // 1. pop rbp  ; from [RSP]
+    // 2. pop rbx  ; from [RSP+8]
+    // 3. pop r12  ; from [RSP+16]
+    // 4. pop r13  ; from [RSP+24]
+    // 5. pop r14  ; from [RSP+32]
+    // 6. pop r15  ; from [RSP+40]
+    // 7. ret       ; pops return_address from [RSP+48]
+    //
+    // So if RSP = stack_bottom + 4088:
+    // rbp is at 4088, rbx at 4096, r12 at 4104, r13 at 4112, r14 at 4120, r15 at 4128, return_address at 4136
+    // But that's beyond the page size!
+    //
+    // Correct: RSP should point to stack_bottom + 4048 (8 bytes from top)
+    // Then: rbp at 4048, rbx at 4056, r12 at 4064, r13 at 4072, r14 at 4080, r15 at 4088, return_address at 4096
+    //
+    // Frame starts 48 bytes from the top: stack_bottom + (4096 - 48) = stack_bottom + 4048
+    uint64_t* stack_frame = (uint64_t*)((uint64_t)stack_bottom + 4048);
+
+    // Set up the context frame that switch_context will pop
+    // Indices: rbp is index 0 because it's at the RSP position
+    stack_frame[0] = 0; // rbp - will be popped first (from [RSP])
+    stack_frame[1] = 0; // rbx - popped from [RSP+8]
+    stack_frame[2] = 0; // r12 - popped from [RSP+16]
+    stack_frame[3] = 0; // r13 - popped from [RSP+24]
+    stack_frame[4] = 0; // r14 - popped from [RSP+32]
+    stack_frame[5] = 0; // r15 - popped from [RSP+40]
+    stack_frame[6] = (uint64_t)entry_point; // Return address - popped by 'ret' from [RSP+48]
+
+    // RSP must point to where rbp is stored (the first value to be popped)
+    new_task->rsp = (uint64_t)stack_bottom + 4048;
+
     new_task->id = next_id++;
     new_task->state = TASK_READY;
     new_task->next = NULL;
+    kprintf("[DEBUG] task_create: Task ID assigned\n");
 
     // Add to list
+    kprintf("[DEBUG] task_create: Adding to list...\n");
     if (task_list_head == NULL) {
         task_list_head = new_task;
         task_list_tail = new_task;
@@ -61,9 +83,9 @@ void task_create(void (*entry_point)()) {
         task_list_tail->next = new_task;
         task_list_tail = new_task;
     }
+    kprintf("[DEBUG] task_create: Done!\n");
 }
 
-// Add this to task.c
 void spawn_task(void (*func)()) {
     task_create(func);
     kprintf("[Sched] New task spawned and added to queue.\n");

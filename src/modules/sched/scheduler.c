@@ -4,6 +4,7 @@
 // Tell the compiler these are defined in task.c
 extern task_t* current_task;
 extern task_t* task_list_head;
+extern task_t* task_list_tail;
 
 // The assembly function in context_switch.s
 extern void switch_context(uint64_t* old_rsp, uint64_t new_rsp);
